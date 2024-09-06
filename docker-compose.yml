@@ -1,0 +1,91 @@
+version: "3"
+services:
+  app_postgres:
+    image: postgres:latest
+    restart: no
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - app_postgres_vol:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+  Auth:
+    container_name: auth
+    image: cosmtrek/air:v1.44.0
+    restart: no
+    working_dir: /app
+    volumes:
+      - ./Auth:/app
+      - ./.env:/app/.env
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app_postgres
+    environment:
+      GOFLAGS: "-buildvcs=false"
+    networks:
+      - app_network
+
+  Product:
+    container_name: post
+    image: cosmtrek/air:v1.44.0
+    restart: no
+    working_dir: /app
+    volumes:
+      - ./Product:/app
+      - ./.env:/app/.env
+    ports:
+      - "9091:9091"
+    depends_on:
+      - app_postgres
+    environment:
+      GOFLAGS: "-buildvcs=false"
+    networks:
+      - app_network
+
+  Contact:
+    container_name: contact
+    image: cosmtrek/air:v1.44.0
+    restart: no
+    working_dir: /app
+    volumes:
+      - ./Contact:/app
+      - ./.env:/app/.env
+    ports:
+      - "9092:9092"
+    depends_on:
+      - app_postgres
+    environment:
+      GOFLAGS: "-buildvcs=false"
+    networks:
+      - app_network
+
+  Mail:
+    container_name: contact
+    image: cosmtrek/air:v1.44.0
+    restart: no
+    working_dir: /app
+    volumes:
+      - ./Mail:/app
+      - ./.env:/app/.env
+    ports:
+      - "9093:9093"
+    depends_on:
+      - app_postgres
+    environment:
+      GOFLAGS: "-buildvcs=false"
+    networks:
+      - app_network
+
+volumes:
+  app_postgres_vol:
+
+
+networks:
+  app_network:
+    driver: bridge
