@@ -8,8 +8,8 @@ import (
 
 func MailRouters(app *fiber.App) {
 	api := app.Group("/api")
-	v1 := api.Group("v1")
-	mail := v1.Group("mail")
+	v1 := api.Group("/v1")
+	mail := v1.Group("/mail")
 
-	mail.Post("/mail", controllers.SendMail)
+	mail.Post("/contact", controllers.SendMail)
 }

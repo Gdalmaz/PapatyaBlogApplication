@@ -1,4 +1,3 @@
-version: "3"
 services:
   app_postgres:
     image: postgres:latest
@@ -48,30 +47,31 @@ services:
     networks:
       - app_network
 
-  Contact:
-    container_name: contact
+  Mail:
+    container_name: Mail
     image: cosmtrek/air:v1.44.0
     restart: no
     working_dir: /app
     volumes:
-      - ./Contact:/app
+      - ./Mail:/app
       - ./.env:/app/.env
     ports:
       - "9092:9092"
     depends_on:
+      - rabbitmq
       - app_postgres
     environment:
       GOFLAGS: "-buildvcs=false"
     networks:
       - app_network
 
-  Mail:
-    container_name: contact
+  Panel:
+    container_name: Panel
     image: cosmtrek/air:v1.44.0
     restart: no
     working_dir: /app
     volumes:
-      - ./Mail:/app
+      - ./Panel:/app
       - ./.env:/app/.env
     ports:
       - "9093:9093"
@@ -82,9 +82,35 @@ services:
     networks:
       - app_network
 
+  Visitor:
+    container_name: Visitor
+    image: cosmtrek/air:v1.44.0
+    restart: no
+    working_dir: /app
+    volumes:
+      - ./Visitor:/app
+      - ./.env:/app/.env
+    ports:
+      - "9094:9094"
+    depends_on:
+      - app_postgres
+    environment:
+      GOFLAGS: "-buildvcs=false"
+    networks:
+      - app_network
+
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app_network
+
 volumes:
   app_postgres_vol:
-
 
 networks:
   app_network:

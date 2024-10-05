@@ -11,5 +11,5 @@ func main() {
 	database.Connect()
 	app := fiber.New()
 	routers.UserRouter(app)
-	app.Listen("9090")
+	app.Listen(":9090")
 }

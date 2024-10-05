@@ -52,7 +52,7 @@ func SignIn(c *fiber.Ctx) error {
 	session.UserID = user.ID
 	token, err := middleware.GenerateToken(user.Mail)
 	session.Token = token
-	err = database.DB.Db.Create(&user).Error
+	err = database.DB.Db.Create(&session).Error
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : S-I-3"})
 	}
@@ -72,6 +72,7 @@ func UpdatePassword(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-2"})
 	}
+	updatepass.OldPass = helpers.HashPass(updatepass.OldPass)
 	if updatepass.OldPass != user.Password {
 		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-3"})
 	}
@@ -82,6 +83,7 @@ func UpdatePassword(c *fiber.Ctx) error {
 		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-5"})
 	}
 	user.Password = updatepass.NewPass1
+	user.Password = helpers.HashPass(user.Password)
 	err = database.DB.Db.Updates(&user).Error
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-6"})
@@ -103,7 +105,6 @@ func UpdateAccount(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-A-3"})
 	}
 	return c.Status(200).JSON(fiber.Map{"Status": "Success", "Message": "Success"})
-
 }
 
 func DeleteAccount(c *fiber.Ctx) error {
@@ -122,4 +123,16 @@ func DeleteAccount(c *fiber.Ctx) error {
 	}
 	return c.Status(200).JSON(fiber.Map{"Status": "Success", "Message": "Success"})
 
+}
+
+func LogOut(c *fiber.Ctx) error {
+	sessionUser, ok := c.Locals("user").(models.User)
+	if !ok {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"status": "error", "message": "user not found in context"})
+	}
+	err := database.DB.Db.Exec("DELETE FROM sessions WHERE user_id = ?", sessionUser.ID).Error
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"status": "error", "message": "error delete session step"})
+	}
+	return c.Status(200).JSON(fiber.Map{"status": "success", "message": "logout successfully"})
 }

@@ -11,5 +11,5 @@ func main() {
 	database.Connect()
 	app := fiber.New()
 	routers.MailRouters(app)
-	app.Listen(":9093")
+	app.Listen(":9092")
 }

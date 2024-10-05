@@ -1,6 +1,6 @@
 module product
 
-go 1.21.6
+go 1.21
 
 require (
 	github.com/cloudinary/cloudinary-go/v2 v2.9.0

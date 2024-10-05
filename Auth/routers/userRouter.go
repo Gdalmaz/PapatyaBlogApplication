@@ -16,4 +16,5 @@ func UserRouter(app *fiber.App) {
 	user.Put("update-pass", middleware.TokenControl(), controllers.UpdatePassword)
 	user.Put("/update-acc", middleware.TokenControl(), controllers.UpdateAccount)
 	user.Delete("/delete-acc", middleware.TokenControl(), controllers.DeleteAccount)
+	user.Delete("/log-out", middleware.TokenControl(), controllers.LogOut)
 }

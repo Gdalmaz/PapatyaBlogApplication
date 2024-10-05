@@ -9,83 +9,105 @@ import (
 )
 
 func AddProduct(c *fiber.Ctx) error {
-	_, ok := c.Locals("user").(models.User)
+	user, ok := c.Locals("user").(models.User)
 	if !ok {
-		return c.Status(400).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : A-P-1"})
+		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : A-P-1"})
 	}
 	var product models.Product
-	err := c.BodyParser(&product)
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-R-2"})
-
-	}
 	productname := c.FormValue("productname")
-	if len(productname) != 0 {
-		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : A-P-3"})
-	}
 	productdescription := c.FormValue("productdescription")
-	if len(productdescription) != 0 {
-		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : A-P-4"})
+
+	if len(productname) != 0 {
+		product.ProductName = productname
 	}
+	if len(productdescription) != 0 {
+		product.ProductDescription = productdescription
+	}
+
+	product.UserID = user.ID
+
+	// Resmi yükleme işlemi
 	file, err := c.FormFile("image")
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-R-5"})
+		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-2"})
 	}
 
 	fileBytes, err := file.Open()
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-R-6"})
+		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-3"})
 	}
-
 	defer fileBytes.Close()
 
 	imageBytes := make([]byte, file.Size)
 	_, err = fileBytes.Read(imageBytes)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-R-7"})
+		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-4"})
 	}
 
 	id, url, err := config.CloudConnect(imageBytes)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-R-8"})
+		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-5"})
 	}
-	product.ProductImage = id
-	product.ProductImageURL = url
+	product.Image = id
+	product.ImageUrl = url
+
+	// Ürünü kaydetme
 	err = database.DB.Db.Create(&product).Error
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-R-9"})
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : A-P-6"})
 	}
-	return c.Status(200).JSON(fiber.Map{"status": "Success", "message": "Success", "data": product})
 
+	// Ekstra resim yükleme
+	extraFile, err := c.FormFile("extra_image")
+	if err == nil {
+		extraFileBytes, err := extraFile.Open()
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-EXTRA-1"})
+		}
+		defer extraFileBytes.Close()
+
+		extraImageBytes := make([]byte, extraFile.Size)
+		_, err = extraFileBytes.Read(extraImageBytes)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-EXTRA-2"})
+		}
+
+		extraId, extraUrl, err := config.CloudConnect(extraImageBytes)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-EXTRA-3"})
+		}
+
+		extraImage := models.ExtraImage{
+			ProductID:       product.ID,
+			ProductImage:    extraId,
+			ProductImageUrl: extraUrl,
+		}
+		err = database.DB.Db.Create(&extraImage).Error
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : A-P-EXTRA-4"})
+		}
+	}
+
+	return c.Status(200).JSON(fiber.Map{"Status": "Success", "Message": "Product added successfully"})
 }
 
 func UpdateProduct(c *fiber.Ctx) error {
-	_, ok := c.Locals("user").(models.User)
-	if !ok {
-		return c.Status(400).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-1"})
-	}
-
 	productID := c.Params("id")
-	if productID == "" {
-		return c.Status(400).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-2"})
-	}
-
 	var product models.Product
-
-	if err := database.DB.Db.First(&product, productID).Error; err != nil {
-		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-3"})
+	err := database.DB.Db.First(&product, productID).Error
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "Product not found"})
 	}
-
-	if err := c.BodyParser(&product); err != nil {
-		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-4"})
+	user, ok := c.Locals("user").(models.User)
+	if !ok || product.UserID != user.ID {
+		return c.Status(403).JSON(fiber.Map{"Status": "Error", "Message": "Unauthorized"})
 	}
 
 	productname := c.FormValue("productname")
+	productdescription := c.FormValue("productdescription")
 	if len(productname) != 0 {
 		product.ProductName = productname
 	}
-
-	productdescription := c.FormValue("productdescription")
 	if len(productdescription) != 0 {
 		product.ProductDescription = productdescription
 	}
@@ -94,48 +116,109 @@ func UpdateProduct(c *fiber.Ctx) error {
 	if err == nil {
 		fileBytes, err := file.Open()
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-R-5"})
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-2"})
 		}
 		defer fileBytes.Close()
 
 		imageBytes := make([]byte, file.Size)
 		_, err = fileBytes.Read(imageBytes)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-R-6"})
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-3"})
 		}
 
 		id, url, err := config.CloudConnect(imageBytes)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-R-7"})
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-5"})
 		}
-		product.ProductImage = id
-		product.ProductImageURL = url
+		product.Image = id
+		product.ImageUrl = url
 	}
 
-	if err := database.DB.Db.Save(&product).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-R-8"})
+	extraFile, err := c.FormFile("extra_image")
+	if err == nil {
+		extraFileBytes, err := extraFile.Open()
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-EXTRA-1"})
+		}
+		defer extraFileBytes.Close()
+
+		extraImageBytes := make([]byte, extraFile.Size)
+		_, err = extraFileBytes.Read(extraImageBytes)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-EXTRA-2"})
+		}
+
+		extraId, extraUrl, err := config.CloudConnect(extraImageBytes)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-EXTRA-3"})
+		}
+
+		var extraImage models.ExtraImage
+		err = database.DB.Db.Where("product_id = ?", product.ID).First(&extraImage).Error
+		if err != nil {
+			extraImage = models.ExtraImage{
+				ProductID:       product.ID,
+				ProductImage:    extraId,
+				ProductImageUrl: extraUrl,
+			}
+			err = database.DB.Db.Create(&extraImage).Error
+		} else {
+			extraImage.ProductImage = extraId
+			extraImage.ProductImageUrl = extraUrl
+			err = database.DB.Db.Save(&extraImage).Error
+		}
+
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"status": "error", "message": "ERROR : U-P-EXTRA-4"})
+		}
 	}
 
-	return c.Status(200).JSON(fiber.Map{"status": "Success", "message": "Product updated successfully", "data": product})
+	err = database.DB.Db.Save(&product).Error
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : U-P-6"})
+	}
+
+	return c.Status(200).JSON(fiber.Map{"Status": "Success", "Message": "Product updated successfully"})
 }
 
-// Burada silmiyoruz sadece durumunu false yapıyoruz
 func DeleteProduct(c *fiber.Ctx) error {
-	_, ok := c.Locals("user").(models.User)
+	user, ok := c.Locals("user").(models.User)
 	if !ok {
-		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : D-P-1"})
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR: D-P-1"})
 	}
 	var product models.Product
 	id := c.Params("id")
 	err := database.DB.Db.Where("id=?", id).First(&product).Error
 	if err != nil {
-		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : D-P-2"})
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : D-P-2"})
+	}
+	if user.ID != product.UserID {
+		return c.Status(400).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : D-P-3"})
 	}
 	product.IsActive = false
-	err = database.DB.Db.Updates(&product).Error
+	err = database.DB.Db.Save(&product).Error
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : D-P-3"})
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "Error : D-P-4"})
 	}
 	return c.Status(200).JSON(fiber.Map{"Status": "Success", "Message": "Success"})
 }
 
+// bu endpoint silinen product ları geri alacak
+func RebinProduct(c *fiber.Ctx) error {
+	_, ok := c.Locals("user").(models.User)
+	if !ok {
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : R-P-1"})
+	}
+	var product models.Product
+	id := c.Params("id")
+	err := database.DB.Db.Where("id=?", id).First(&product).Error
+	if err != nil {
+		return c.Status(404).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : R-P-2"})
+	}
+	product.IsActive = true
+	err = database.DB.Db.Save(&product).Error
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"Status": "Error", "Message": "ERROR : R-P-3"})
+	}
+	return c.Status(200).JSON(fiber.Map{"Status": "Success", "Message": "Success"})
+}
